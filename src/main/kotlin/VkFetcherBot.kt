@@ -121,17 +121,17 @@ class VkFetcherBot(private val token: String,
             val chatId = update.message.chatId
             val text = update.message.text
             if (text.split(" ").size == 2) {
-                val groupId = text.substringAfter(" ")
+                val wallId = text.substringAfter(" ")
                 if (text.startsWith("/add")) {
-                    println("Add new group ($groupId) for $chatId")
-                    val groupToPosts = chatToPosts.getOrPut(chatId, { hashMapOf() })
-                    groupToPosts.getOrPut(groupId, { mutableListOf() })
-                    execute(SendMessage(chatId, "Group $groupId added."))
+                    println("Add new wall ($wallId) for $chatId")
+                    val wallToPosts = chatToPosts.getOrPut(chatId, { hashMapOf() })
+                    wallToPosts.getOrPut(wallId, { mutableListOf() })
+                    execute(SendMessage(chatId, "Wall $wallId added."))
                 } else if (text.startsWith("/remove")) {
-                    println("Remove group $groupId from $chatId")
-                    val groupToPosts = chatToPosts[chatId]
-                    groupToPosts?.remove(groupId)
-                    execute(SendMessage(chatId, "Group $groupId removed."))
+                    println("Remove wall $wallId from $chatId")
+                    val wallToPosts = chatToPosts[chatId]
+                    wallToPosts?.remove(wallId)
+                    execute(SendMessage(chatId, "Wall $wallId removed."))
                 }
             }
             if (text.startsWith("/list")) {

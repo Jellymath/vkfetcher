@@ -5,3 +5,4 @@ build/
 
 # Sensitive data
 config.properties
+known_posts.json

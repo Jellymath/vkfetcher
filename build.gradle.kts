@@ -31,6 +31,7 @@ dependencies {
     compile(kotlinModule("stdlib-jdk8", kotlinVersion))
     compile("com.vk.api", "sdk", "0.5.6")
     compile("org.telegram", "telegrambots", "3.5")
+    compile("com.github.salomonbrys.kotson", "kotson", "2.5.0")
 }
 
 tasks.withType<KotlinCompile> {

@@ -130,8 +130,12 @@ class VkFetcherBot(private val token: String,
                 } else if (text.startsWith("/remove")) {
                     println("Remove wall $wallId from $chatId")
                     val wallToPosts = chatToPosts[chatId]
-                    wallToPosts?.remove(wallId)
-                    execute(SendMessage(chatId, "Wall $wallId removed."))
+                    if (wallToPosts?.remove(wallId) != null) {
+                        execute(SendMessage(chatId, "Wall $wallId removed."))
+                    } else {
+                        execute(SendMessage(chatId, "You weren't subscribed to wall#$wallId. Wrong id?"))
+                        println("Wall $wallId not present in subscriptions of $chatId.")
+                    }
                 }
             }
             if (text.startsWith("/list")) {

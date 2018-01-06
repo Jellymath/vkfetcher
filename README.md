@@ -10,11 +10,10 @@ Supports:
 - [x] User walls
 - [x] Partial support of multimedia content*
 - [x] Markdown links to clickable http-links transformation
-- [x] Pinned messages**
+- [x] Pinned messages
 
 *Images and videos are transformed to the links to them. Music is transformed to "Audio: artist - title" string.
 
-**Current implementation fetches 5 top posts causing pinned message to be fetched everytime.
 
 ### Getting started
 

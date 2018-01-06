@@ -44,6 +44,6 @@ Supported commands:
 
 Use `/list` to get your current subscriptions.
 
-wallId can be either numbers or text ( `/remove 1` or `/remove durov`)
+wallId can be either number or text ( `/remove 1` or `/remove durov`)
 
-wallId for public or group wall as number should be passed with `-` sign (`/add -69781078`). Nothing special for text name.
+wallId for public or group wall as number should be passed with `-` sign (`/add -69781078`). Nothing special for the text name.

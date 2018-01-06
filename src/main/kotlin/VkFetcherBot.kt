@@ -62,7 +62,7 @@ class VkFetcher(appId: Int, token: String, chatToPosts: ChatIdToKnownPosts, priv
             if (post.text != null && post.text.isNotBlank()) {
                 result.add(post.text.replace(Regex("\\[(.+?)\\|(.+?)]"), "<a href=\"vk.com/$1\">$2</a>"))
             }
-            if (post.attachments != null && post.attachments.isNotEmpty()) {
+            if (post.attachments?.isNotEmpty() == true) {
                 post.attachments.forEach {
                     when {
                         it.photo != null -> with(it.photo) { photo2560 ?: photo1280 ?: photo807 ?: photo604 }?.let { result.add(it) }
@@ -72,7 +72,7 @@ class VkFetcher(appId: Int, token: String, chatToPosts: ChatIdToKnownPosts, priv
                     }
                 }
             }
-            return result.map { "from $wallId (added ${LocalDateTime.ofEpochSecond(post.date.toLong(), 0, ZoneOffset.UTC)} UTC):\n\n$it" }
+            return result.map { "<b>from $wallId</b> (added ${LocalDateTime.ofEpochSecond(post.date.toLong(), 0, ZoneOffset.UTC)} UTC):\n\n$it" }
         }
 
         timer(period = TimeUnit.SECONDS.toMillis(60)) {

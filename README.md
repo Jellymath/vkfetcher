@@ -21,7 +21,7 @@ Supports:
 - Obtain Telegram Bot API token: Ask [@BotFather](https://t.me/BotFather)
 - Pass to JVM options path to the config file:
 
-```java
+```properties
 vk.appId= //Application ID
 
 vk.token= //Service token

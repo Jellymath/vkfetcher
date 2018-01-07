@@ -69,6 +69,7 @@ class VkFetcher(appId: Int, token: String, chatToPosts: ChatIdToKnownPosts, priv
                         it.video != null -> with(it.video) { result.add("vk.com/video${ownerId}_$id") }
                         it.link != null -> if (post.text?.contains(it.link.url) != true) result.add(it.link.url)
                         it.audio != null -> result.add("Audio: ${it.audio.artist} - ${it.audio.title}")
+                        it.album != null -> with(it.album) { result.add("vk.com/album${ownerId}_$id") }
                     }
                 }
             }
@@ -130,8 +131,12 @@ class VkFetcherBot(private val token: String,
                 } else if (text.startsWith("/remove")) {
                     println("Remove wall $wallId from $chatId")
                     val wallToPosts = chatToPosts[chatId]
-                    wallToPosts?.remove(wallId)
-                    execute(SendMessage(chatId, "Wall $wallId removed."))
+                    if (wallToPosts?.remove(wallId) != null) {
+                        execute(SendMessage(chatId, "Wall $wallId removed."))
+                    } else {
+                        execute(SendMessage(chatId, "You weren't subscribed to wall#$wallId. Wrong id?"))
+                        println("Wall $wallId not present in subscriptions of $chatId.")
+                    }
                 }
             }
             if (text.startsWith("/list")) {

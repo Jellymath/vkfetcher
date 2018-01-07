@@ -69,6 +69,7 @@ class VkFetcher(appId: Int, token: String, chatToPosts: ChatIdToKnownPosts, priv
                         it.video != null -> with(it.video) { result.add("vk.com/video${ownerId}_$id") }
                         it.link != null -> if (post.text?.contains(it.link.url) != true) result.add(it.link.url)
                         it.audio != null -> result.add("Audio: ${it.audio.artist} - ${it.audio.title}")
+                        it.album != null -> with(it.album) { result.add("vk.com/album${ownerId}_$id") }
                     }
                 }
             }

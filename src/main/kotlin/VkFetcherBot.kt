@@ -7,7 +7,9 @@ import com.vk.api.sdk.objects.wall.WallpostFull
 import com.vk.api.sdk.queries.wall.WallGetFilter
 import org.telegram.telegrambots.ApiContextInitializer
 import org.telegram.telegrambots.TelegramBotsApi
+import org.telegram.telegrambots.api.methods.send.SendDocument
 import org.telegram.telegrambots.api.methods.send.SendMessage
+import org.telegram.telegrambots.api.methods.send.SendPhoto
 import org.telegram.telegrambots.api.objects.Message
 import org.telegram.telegrambots.api.objects.Update
 import org.telegram.telegrambots.bots.TelegramLongPollingBot
@@ -49,30 +51,60 @@ fun main(args: Array<String>) {
     VkFetcher(properties.getProperty("vk.appId").toInt(),
             properties.getProperty("vk.token"),
             knownPosts,
-            { _: Long, it: String -> println(it) } andThen bot::newPost)
+            bot)
 }
 
-class VkFetcher(appId: Int, token: String, chatToPosts: ChatIdToKnownPosts, private val callback: (Long, String) -> Unit) {
+class VkFetcher(appId: Int, token: String, chatToPosts: ChatIdToKnownPosts, private val bot: VkFetcherBot) {
     private val actor = ServiceActor(appId, token)
     private val vk = VkApiClient(HttpTransportClient())
 
     init {
-        fun convertToText(wallId: String, post: WallpostFull): List<String> {
-            val result = mutableListOf<String>()
-            if (post.text != null && post.text.isNotBlank()) {
-                result.add(post.text.replace(Regex("\\[(.+?)\\|(.+?)]"), "<a href=\"vk.com/$1\">$2</a>"))
+        fun convertToAction(wallId: String, post: WallpostFull): List<(Long) -> Unit> {
+            val result = mutableListOf<(Long) -> Unit>()
+            val fromText = "<b>from $wallId</b> (added ${LocalDateTime.ofEpochSecond(post.date.toLong(), 0, ZoneOffset.UTC)} UTC):"
+            val postText = if (post.text != null && post.text.isNotBlank()) {
+                "\n\n" + post.text.replace(Regex("\\[(.+?)\\|(.+?)]"), "<a href=\"vk.com/$1\">$2</a>")
+            } else {
+                ""
             }
+            result += { bot.execute(SendMessage(it, fromText + postText).apply { setParseMode("html") }) }
             if (post.attachments?.isNotEmpty() == true) {
                 post.attachments.forEach {
                     when {
-                        it.photo != null -> with(it.photo) { photo2560 ?: photo1280 ?: photo807 ?: photo604 }?.let { result.add(it) }
-                        it.video != null -> with(it.video) { result.add("vk.com/video${ownerId}_$id") }
-                        it.link != null -> if (post.text?.contains(it.link.url) != true) result.add(it.link.url)
-                        it.audio != null -> result.add("Audio: ${it.audio.artist} - ${it.audio.title}")
+                        it.photo != null -> with(it.photo) {
+                            photo2560 ?: photo1280 ?: photo807 ?: photo604
+                        }?.let { url ->
+                            result += {
+                                bot.sendPhoto(SendPhoto().apply {
+                                    chatId = it.toString()
+                                    photo = url
+                                })
+                            }
+                        }
+                        it.video != null -> with(it.video) {
+                            result += { bot.execute(SendMessage(it, "vk.com/video${ownerId}_$id")) }
+                        }
+                        it.link != null -> if (post.text?.contains(it.link.url) != true) with(it.link) {
+                            result += { bot.execute(SendMessage(it, url)) }
+                        }
+                        it.audio != null -> with(it.audio) {
+                            result += { bot.execute(SendMessage(it, "Audio: $artist - $title")) }
+                        }
+                        it.doc != null -> with(it.doc) {
+                            result += {
+                                bot.sendDocument(SendDocument().apply {
+                                    chatId = it.toString()
+                                    document = url
+                                })
+                            }
+                        }
+                        it.album != null -> with(it.album) {
+                            result += { bot.execute(SendMessage(it, "vk.com/album${ownerId}_$id")) }
+                        }
                     }
                 }
             }
-            return result.map { "<b>from $wallId</b> (added ${LocalDateTime.ofEpochSecond(post.date.toLong(), 0, ZoneOffset.UTC)} UTC):\n\n$it" }
+            return if (result.size > 1 || postText.isNotBlank()) result else emptyList()
         }
 
         timer(period = TimeUnit.SECONDS.toMillis(60)) {
@@ -98,9 +130,8 @@ class VkFetcher(appId: Int, token: String, chatToPosts: ChatIdToKnownPosts, priv
                             .mapValues { (key, value) -> value.filter { !knownPosts[key]!!.contains(it.id) } }
                     new.mapValues { it.value.map { it.id } }.forEach { knownPosts[it.key]!!.addAll(it.value) }
                     new.flatMap { key -> key.value.map { key.key to it } }
-                            .flatMap { convertToText(it.first, it.second) }
-                            .filter { it.isNotBlank() }
-                            .forEach { callback(chatId, it) }
+                            .flatMap { convertToAction(it.first, it.second) }
+                            .forEach { it(chatId) }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -117,43 +148,35 @@ class VkFetcherBot(private val token: String,
     override fun getBotUsername() = username
 
     override fun onUpdateReceived(update: Update) {
-        if (sentToMe(update.message) && update.message.hasText()) {
-            val chatId = update.message.chatId
-            val text = update.message.text
-            if (text.split(" ").size == 2) {
-                val wallId = text.substringAfter(" ")
-                if (text.startsWith("/add")) {
-                    println("Add new wall ($wallId) for $chatId")
-                    val wallToPosts = chatToPosts.getOrPut(chatId, { hashMapOf() })
-                    wallToPosts.getOrPut(wallId, { mutableListOf() })
-                    execute(SendMessage(chatId, "Wall $wallId added."))
-                } else if (text.startsWith("/remove")) {
-                    println("Remove wall $wallId from $chatId")
-                    val wallToPosts = chatToPosts[chatId]
-                    if (wallToPosts?.remove(wallId) != null) {
-                        execute(SendMessage(chatId, "Wall $wallId removed."))
-                    } else {
-                        execute(SendMessage(chatId, "You weren't subscribed to wall#$wallId. Wrong id?"))
-                        println("Wall $wallId not present in subscriptions of $chatId.")
-                    }
+        if (!sentToMe(update.message) || !update.message.hasText()) return
+
+        val chatId = update.message.chatId
+        val text = update.message.text
+        if (text.split(" ").size == 2) {
+            val wallId = text.substringAfter(" ")
+            if (text.startsWith("/add")) {
+                println("Add new wall ($wallId) for $chatId")
+                val wallToPosts = chatToPosts.getOrPut(chatId, { hashMapOf() })
+                wallToPosts.getOrPut(wallId, { mutableListOf() })
+                execute(SendMessage(chatId, "Wall $wallId added."))
+            } else if (text.startsWith("/remove")) {
+                println("Remove wall $wallId from $chatId")
+                val wallToPosts = chatToPosts[chatId]
+                if (wallToPosts?.remove(wallId) != null) {
+                    execute(SendMessage(chatId, "Wall $wallId removed."))
+                } else {
+                    execute(SendMessage(chatId, "You weren't subscribed to wall#$wallId. Wrong id?"))
+                    println("Wall $wallId not present in subscriptions of $chatId.")
                 }
             }
-            if (text.startsWith("/list")) {
-                execute(SendMessage(chatId, chatToPosts[chatId]?.keys?.joinToString(", ") ?: "No walls found for you"))
-            }
         }
-
+        if (text.startsWith("/list")) {
+            execute(SendMessage(chatId, chatToPosts[chatId]?.keys?.joinToString(", ") ?: "No walls found for you"))
+        }
     }
 
     private fun sentToMe(message: Message?) = message != null &&
             (message.isUserMessage || message.text?.contains("@$username") == true)
-
-    fun newPost(chatId: Long, text: String): Message = execute(SendMessage(chatId, text).apply { setParseMode("html") })
-}
-
-infix fun <T, R> ((T, R) -> Any?).andThen(and: (T, R) -> Any?): (T, R) -> Unit = { f, s ->
-    this(f, s)
-    and(f, s)
 }
 
 typealias ChatIdToKnownPosts = MutableMap<Long, MutableMap<String, MutableList<Int>>>

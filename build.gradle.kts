@@ -2,11 +2,11 @@ import org.gradle.jvm.tasks.Jar
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 group = "edu.jellymath"
-version = "1.0-SNAPSHOT"
+version = "1.1-SNAPSHOT"
 
 buildscript {
     var kotlinVersion: String by extra
-    kotlinVersion = "1.2.10"
+    kotlinVersion = "1.2.20"
 
     repositories {
         mavenCentral()

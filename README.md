@@ -12,7 +12,7 @@ Supports:
 - [x] Markdown links to clickable http-links transformation
 - [x] Pinned messages
 
-*Images and videos are transformed to the links to them. Music is transformed to "Audio: artist - title" string.
+*Images, photo albums and videos are transformed to the links to them. Music is transformed to "Audio: artist - title" string.
 
 
 ### Getting started

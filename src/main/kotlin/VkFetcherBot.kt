@@ -6,13 +6,14 @@ import com.vk.api.sdk.httpclient.HttpTransportClient
 import com.vk.api.sdk.objects.wall.WallpostFull
 import com.vk.api.sdk.queries.wall.WallGetFilter
 import org.telegram.telegrambots.ApiContextInitializer
-import org.telegram.telegrambots.TelegramBotsApi
-import org.telegram.telegrambots.api.methods.send.SendDocument
-import org.telegram.telegrambots.api.methods.send.SendMessage
-import org.telegram.telegrambots.api.methods.send.SendPhoto
-import org.telegram.telegrambots.api.objects.Message
-import org.telegram.telegrambots.api.objects.Update
 import org.telegram.telegrambots.bots.TelegramLongPollingBot
+import org.telegram.telegrambots.meta.TelegramBotsApi
+import org.telegram.telegrambots.meta.api.methods.send.SendDocument
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage
+import org.telegram.telegrambots.meta.api.methods.send.SendPhoto
+import org.telegram.telegrambots.meta.api.objects.InputFile
+import org.telegram.telegrambots.meta.api.objects.Message
+import org.telegram.telegrambots.meta.api.objects.Update
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -75,9 +76,9 @@ class VkFetcher(appId: Int, token: String, chatToPosts: ChatIdToKnownPosts, priv
                             photo2560 ?: photo1280 ?: photo807 ?: photo604
                         }?.let { url ->
                             result += {
-                                bot.sendPhoto(SendPhoto().apply {
+                                bot.execute(SendPhoto().apply {
                                     chatId = it.toString()
-                                    photo = url
+                                    photo = InputFile(url)
                                 })
                             }
                         }
@@ -92,9 +93,9 @@ class VkFetcher(appId: Int, token: String, chatToPosts: ChatIdToKnownPosts, priv
                         }
                         it.doc != null -> with(it.doc) {
                             result += {
-                                bot.sendDocument(SendDocument().apply {
+                                bot.execute(SendDocument().apply {
                                     chatId = it.toString()
-                                    document = url
+                                    document = InputFile(url)
                                 })
                             }
                         }

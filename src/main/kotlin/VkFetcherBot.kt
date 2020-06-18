@@ -3,7 +3,12 @@ import com.google.gson.Gson
 import com.vk.api.sdk.client.VkApiClient
 import com.vk.api.sdk.client.actors.ServiceActor
 import com.vk.api.sdk.httpclient.HttpTransportClient
+import com.vk.api.sdk.objects.audio.Audio
+import com.vk.api.sdk.objects.base.Link
+import com.vk.api.sdk.objects.docs.Doc
 import com.vk.api.sdk.objects.enums.WallFilter
+import com.vk.api.sdk.objects.photos.Photo
+import com.vk.api.sdk.objects.photos.PhotoAlbum
 import com.vk.api.sdk.objects.video.Video
 import com.vk.api.sdk.objects.wall.WallpostFull
 import org.telegram.telegrambots.ApiContextInitializer
@@ -84,9 +89,9 @@ class VkFetcher(appId: Int, token: String, private val chatToPosts: ChatIdToKnow
                         .filterKeys { it in knownPosts }
                         .mapValues { (wallOwnerId, posts) -> posts.filter { it.id !in knownPosts[wallOwnerId]!! } }
                 new.mapValues { (_, posts) -> posts.map { it.id } }
-                        .forEach { (wallOwnerId, posts) -> knownPosts[wallOwnerId]!!.addAll(posts) }
-                new.flatMap { key -> key.value.map { key.key to it } }
-                        .flatMap { convertToAction(it.first, it.second) }
+                        .forEach { (wallOwnerId, posts) -> knownPosts[wallOwnerId]!! += (posts) }
+                new.flatMap { (wallId, posts) -> posts.map { wallId to it } }
+                        .flatMap { (wallId, post) -> convertToAction(wallId, post) }
                         .forEach { it(chatId) }
             }
         } catch (e: Exception) {
@@ -96,49 +101,66 @@ class VkFetcher(appId: Int, token: String, private val chatToPosts: ChatIdToKnow
 
     private fun convertToAction(wallId: String, post: WallpostFull): List<(Long) -> Unit> {
         val result = mutableListOf<(Long) -> Unit>()
+        fun <T> addAction(t: T, action: (Long, T) -> Unit) {
+            result += { action(it, t) }
+        }
+
         val fromText = "<b>from $wallId</b> (added ${fromEpochSeconds(post.date)} UTC):"
         val postText = if (post.text?.isNotBlank() == true) {
             "\n\n" + post.text.replace(Regex("\\[(.+?)\\|(.+?)]"), "<a href=\"vk.com/$1\">$2</a>")
         } else {
             ""
         }
-        result += { bot.execute(SendMessage(it, fromText + postText).apply { setParseMode("html") }) }
-        post.attachments?.forEach {
-            when {
-                it.photo != null -> with(it.photo) {
-                    sizes.maxBy { it.width }!!.url
-                }?.let { url ->
-                    result += {
-                        bot.execute(SendPhoto().apply {
-                            chatId = it.toString()
-                            photo = url.toInputFile()
-                        })
-                    }
-                }
-                it.video != null -> with(it.video) {
-                    result += { bot.execute(SendMessage(it, "vk.com/video${ownerId}_$id")) }
-                }
-                it.link != null -> if (post.text?.contains(it.link.url.toString()) != true) with(it.link) {
-                    result += { bot.execute(SendMessage(it, url.toString())) }
-                }
-                it.audio != null -> with(it.audio) {
-                    result += { bot.execute(SendMessage(it, "Audio: $artist - $title")) }
-                }
-                it.doc != null -> with(it.doc) {
-                    result += {
-                        bot.execute(SendDocument().apply {
-                            chatId = it.toString()
-                            document = url.toInputFile()
-                        })
-                    }
-                }
-                it.album != null -> with(it.album) {
-                    result += { bot.execute(SendMessage(it, "vk.com/album${ownerId}_$id")) }
-                }
-            }
+        addAction(fromText + postText, ::sendHtmlText)
+        post.attachments?.forEach { attachment ->
+            attachment.photo?.let { addAction(it, ::sendPhoto) }
+            attachment.video?.let { addAction(it, ::sendVideo) }
+            attachment.link?.takeIf { it.isNonPost(post.text) }?.let { addAction(it, ::sendLink) }
+            attachment.audio?.let { addAction(it, ::sendAudio) }
+            attachment.doc?.let { addAction(it, ::sendDoc) }
+            attachment.album?.let { addAction(it, ::sendAlbum) }
         }
         return if (result.size > 1 || postText.isNotBlank()) result else emptyList()
     }
+
+    private fun sendHtmlText(chatId: Long, text: String) {
+        bot.execute(SendMessage(chatId, text).apply { enableHtml(true) })
+    }
+
+    private fun sendPhoto(chatId: Long, photo: Photo) {
+        (photo.sizes.maxBy { it.width }?.url)?.let { url ->
+            bot.execute(SendPhoto().apply {
+                this.chatId = chatId.toString()
+                this.photo = url.toInputFile()
+            })
+        }
+    }
+
+    private fun sendVideo(chatId: Long, video: Video) {
+        bot.execute(SendMessage(chatId, "vk.com/video${video.ownerId}_${video.id}"))
+    }
+
+    private fun sendLink(chatId: Long, link: Link) {
+        bot.execute(SendMessage(chatId, link.url.toString()))
+    }
+
+    private fun sendAudio(chatId: Long, audio: Audio) {
+        bot.execute(SendMessage(chatId, "Audio: ${audio.artist} - ${audio.title}"))
+    }
+
+    private fun sendDoc(chatId: Long, doc: Doc) {
+        bot.execute(SendDocument().apply {
+            this.chatId = chatId.toString()
+            document = doc.url.toInputFile()
+        })
+    }
+
+    private fun sendAlbum(chatId: Long, album: PhotoAlbum) {
+        bot.execute(SendMessage(chatId, "vk.com/album${album.ownerId}_${album.id}"))
+    }
+
+    private fun Link.isNonPost(postText: String?) =
+            postText == null || url.toString() !in postText
 }
 
 class VkFetcherBot(private val token: String,
